@@ -1,0 +1,11 @@
+{
+  "name": "node-rpc",
+  "author": "AnoyingShulker",
+  "main": "./lib/index.js",
+  "dependencies": {
+    "node-addon-api": "5.0.0",
+    "node-fetch": "^3.2.10"
+  },
+  "gypfile": true,
+  "type": "module"
+}
