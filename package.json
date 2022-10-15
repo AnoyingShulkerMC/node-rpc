@@ -1,7 +1,8 @@
 {
   "name": "node-rpc",
   "author": "AnoyingShulker",
-  "main": "./lib/index.js",
+  "main": "./lib/RPCClient.js",
+  "version": "0.0.0",
   "dependencies": {
     "node-addon-api": "5.0.0",
     "node-fetch": "^3.2.10"
