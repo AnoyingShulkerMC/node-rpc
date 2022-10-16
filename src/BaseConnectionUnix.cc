@@ -26,7 +26,7 @@ Napi::Value BaseConnectionUnix::Open(const Napi::CallbackInfo& info) {
   const char* tempPath = GetTempPath();
   this->sock = socket(AF_UNIX, SOCK_STREAM, 0);
   if (this->sock == -1) Napi::Error::New(info.Env(), "Error connecting").ThrowAsJavaScriptException();
-  fnctl(this->sock, F_SETFL, O_NONBLOCK);
+  fcntl(this->sock, F_SETFL, O_NONBLOCK);
 #ifdef SO_NOSIGPIPE
   int optval = 1;
   setsocopt(this->sock, SOL_SOCKET, SO_NOSIGPIPE, &optval, sizeof(optval));
@@ -36,16 +36,16 @@ Napi::Value BaseConnectionUnix::Open(const Napi::CallbackInfo& info) {
     int err = connect(this->sock, (const sockaddr*)&PipeAddr, sizeof(PipeAddr));
     if (err == 0) {
       this->isOpen = true;
-      return;
+      return info.Env().Undefined();
     }
   }
   _Close();
   Napi::Error::New(info.Env(), "Discord is not Active").ThrowAsJavaScriptException();
-  return;
+  return info.Env().Undefined();
 };
 Napi::Value BaseConnectionUnix::Close(const Napi::CallbackInfo& info) {
   _Close();
-  return;
+  return info.Env().Undefined();
 };
 Napi::Value BaseConnectionUnix::Write(const Napi::CallbackInfo& info) {
   if (info.Length() != 2) {
@@ -72,8 +72,9 @@ Napi::Value BaseConnectionUnix::Write(const Napi::CallbackInfo& info) {
   if (this->sock == -1) {
     Napi::Error::New(info.Env(), "The connection isn't open yet.").ThrowAsJavaScriptException();
   }
-  ssize_t sentBytes = send(this->sock, &message, sizeof(message), MsgFlags);
-  return sentBytes == (ssize_t)(sizeof(MessageFrameHeader) + message.length);
+  ssize_t sentBytes = send(this->sock, &message, (ssize_t)(sizeof(MessageFrameHeader) + message.length), MsgFlags);
+  if (sentBytes != (ssize_t)(sizeof(MessageFrameHeader) + message.length)) Napi::Error::New(info.Env(), "Error writing message").ThrowAsJavaScriptException();
+  return info.Env().Undefined();
 };
 Napi::Value BaseConnectionUnix::Read(const Napi::CallbackInfo& info) {
 
@@ -137,7 +138,7 @@ Napi::Function BaseConnectionUnix::GetClass(Napi::Env env) {
 }
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set(Napi::String::New(env, "Register"), Napi::Function::New(env, Register));
-  exports.Set(Napi::String::New(env, "BaseConnection"), Napi::Function::New(env, BaseConnectionUnix::GetClass(env)));
+  exports.Set(Napi::String::New(env, "BaseConnection"), BaseConnectionUnix::GetClass(env));
   return exports;
 }
 NODE_API_MODULE(addon, Init)
