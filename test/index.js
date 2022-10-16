@@ -1,7 +1,7 @@
 import RPCClient from "../lib/RPCClient.js"
 import { Register } from "../lib/RPCClient.js"
 import { fileURLToPath } from "node:url"
-var cli = new RPCClient({ client_id: "", client_secret: "" })
+var cli = new RPCClient({ client_id: "1030631289973379133", client_secret: "XeuDqueKK1k_f5oZxFxgpFZQ5YvxdPld" })
 console.log(process.argv)
 cli.on("debug", console.log)
 cli.on("READY", () => {
