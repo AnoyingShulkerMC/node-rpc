@@ -11,7 +11,7 @@ Napi::Value Register(const Napi::CallbackInfo& info) {
 	}
 	const std::string command = info[1].As<Napi::String>().Utf8Value();
 	const std::string clientID = info[0].As<Napi::String>().Utf8Value();
-	std::string protocolDesc = "URL:Connect to " + clientID;
+	/*std::string protocolDesc = "URL:Connect to " + clientID;
 	std::string classPath = "Software\\Classes\\discord-" + clientID;
 	HKEY key;
 	auto status = RegCreateKeyExA(HKEY_CURRENT_USER, classPath.c_str(), NULL, nullptr, NULL, KEY_WRITE, nullptr, &key, nullptr);
@@ -30,5 +30,5 @@ Napi::Value Register(const Napi::CallbackInfo& info) {
 	if (status != ERROR_SUCCESS) {
 		Napi::Error::New(info.Env(), "Error linking command").ThrowAsJavaScriptException();
 	}
-	return info.Env().Undefined();
+	return info.Env().Undefined();*/
 }
