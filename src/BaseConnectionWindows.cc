@@ -8,8 +8,15 @@
 BaseConnectionWin::BaseConnectionWin(const Napi::CallbackInfo& info) : ObjectWrap(info) {};
 
 Napi::Value BaseConnectionWin::Open(const Napi::CallbackInfo& info) {
-	wchar_t pipeName[]{ L"\\\\?\\pipe\\discord-ipc-0" };
+	int pipe = 0;
+	if (info.Length() > 0 && info[0].IsNumber()) {
+		napi_get_value_int32(info.Env(), info[0], &pipe);
+	}
+	wchar_t pipeName[] = { L"\\\\?\\pipe\\discord-ipc-0" };
 	const size_t pipeDigit = sizeof(pipeName) / sizeof(wchar_t) - 2;
+	for (int i = 0; i < pipe; i++) {
+		pipeName[pipeDigit]++;
+	}
 	for (;;) {
 		this->pipe = CreateFileW(pipeName, GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
 		if (this->pipe != INVALID_HANDLE_VALUE) {
@@ -19,9 +26,11 @@ Napi::Value BaseConnectionWin::Open(const Napi::CallbackInfo& info) {
 		auto err = GetLastError();
 		if (err == ERROR_FILE_NOT_FOUND) {
 			if (pipeName[pipeDigit] < L'9') {
-				Napi::Error::New(info.Env(), "Discord is not active").ThrowAsJavaScriptException();
 				pipeName[pipeDigit]++;
 				continue;
+			}
+			else {
+				Napi::Error::New(info.Env(), "Discord is not active").ThrowAsJavaScriptException();
 			}
 		}
 		else if (err == ERROR_PIPE_BUSY) {
@@ -33,6 +42,7 @@ Napi::Value BaseConnectionWin::Open(const Napi::CallbackInfo& info) {
 		Napi::Error::New(info.Env(), "Windows failed with error ").ThrowAsJavaScriptException();
 		return Napi::Boolean::New(info.Env(), false);
 	}
+	return Napi::Boolean::New(info.Env(), true);
 }
 Napi::Value BaseConnectionWin::Close(const Napi::CallbackInfo& info) {
 	_Close();
@@ -52,19 +62,18 @@ Napi::Value BaseConnectionWin::Write(const Napi::CallbackInfo& info) {
 		return Napi::Boolean::New(info.Env(), false);
 	}
 	MessageFrame message;
-	uint32_t op;
-	napi_get_value_uint32(info.Env(), info[0], &op);
+	napi_get_value_uint32(info.Env(), info[0], &message.opcode);
 	size_t len;
-	napi_status buffer_stat = napi_get_value_string_utf8(info.Env(), info[1], message.message, sizeof(message.message), &len);
-	message.opcode = op;
+	napi_status status = napi_get_value_string_utf8(info.Env(), info[1], message.message, sizeof(message.message), &len);
 	message.length = len;
-	if (buffer_stat != napi_ok) {
+	if (status != napi_ok) {
 		Napi::Error::New(info.Env(), "NAPI failed with error ").ThrowAsJavaScriptException();
 		return Napi::Boolean::New(info.Env(), false);
 	}
-	DWORD length = (DWORD)(sizeof(MessageFrameHeader) + len);
-	DWORD bytesWritten = 0;
-	return Napi::Boolean::New(info.Env(), WriteFile(this->pipe, &message, length, &bytesWritten, nullptr) == TRUE && bytesWritten == length);
+	DWORD length = static_cast<DWORD>(sizeof(MessageFrameHeader) + len);
+	DWORD written = 0;
+	const bool success = WriteFile(this->pipe, &message, length, &written, nullptr) == TRUE;
+	return Napi::Boolean::New(info.Env(), success  && written == length);
 }
 Napi::Value BaseConnectionWin::Read(const Napi::CallbackInfo& info) {
 	MessageFrame message;
@@ -132,7 +141,41 @@ Napi::Function BaseConnectionWin::GetClass(Napi::Env env) {
 		}
 	);
 }
+Napi::Value Register(const Napi::CallbackInfo& info) {
+	if (info.Length() != 2) {
+		Napi::TypeError::New(info.Env(), "Two Arguments are required").ThrowAsJavaScriptException();
+	}
+	if (!info[0].IsString()) {
+		Napi::TypeError::New(info.Env(), "`client_id` must be a string`").ThrowAsJavaScriptException();
+	}
+	if (!info[1].IsString()) {
+		Napi::TypeError::New(info.Env(), "`command` must be a string`").ThrowAsJavaScriptException();
+	}
+	const std::string command = info[1].As<Napi::String>().Utf8Value();
+	const std::string clientID = info[0].As<Napi::String>().Utf8Value();
+	std::string protocolDesc = "URL:Connect to " + clientID;
+	std::string classPath = "Software\\Classes\\discord-" + clientID;
+	HKEY key;
+	auto status = RegCreateKeyExA(HKEY_CURRENT_USER, classPath.c_str(), NULL, nullptr, NULL, KEY_WRITE, nullptr, &key, nullptr);
+	if (status != ERROR_SUCCESS) {
+		Napi::Error::New(info.Env(), "Error creating registry class").ThrowAsJavaScriptException();
+	}
+	status = RegSetValueExA(key, nullptr, NULL, REG_SZ, (BYTE*)protocolDesc.c_str(), protocolDesc.length());
+	if (status != ERROR_SUCCESS) {
+		Napi::Error::New(info.Env(), "Error writing protocol description").ThrowAsJavaScriptException();
+	}
+	status = RegSetKeyValueA(key, nullptr, "URL Protocol", REG_SZ, nullptr, 0);
+	if (status != ERROR_SUCCESS) {
+		Napi::Error::New(info.Env(), "Error linkingg as protocol").ThrowAsJavaScriptException();
+	}
+	status = RegSetKeyValueA(key, "shell\\open\\command", nullptr, REG_SZ, command.c_str(), command.length());
+	if (status != ERROR_SUCCESS) {
+		Napi::Error::New(info.Env(), "Error linking command").ThrowAsJavaScriptException();
+	}
+	return info.Env().Undefined();
+}
 Napi::Object init(Napi::Env env, Napi::Object exports) {
+	exports.Set(Napi::String::New(env, "Register"), Napi::Function::New(env, Register));
 	exports.Set(Napi::String::New(env, "BaseConnection"), BaseConnectionWin::GetClass(env));
 	return exports;
 }

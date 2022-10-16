@@ -1,7 +1,8 @@
 import RPCClient from "../lib/RPCClient.js"
-
+import { Register } from "../lib/RPCClient.js"
+import { fileURLToPath } from "node:url"
 var cli = new RPCClient({ client_id: "", client_secret: "" })
-
+console.log(process.argv)
 cli.on("debug", console.log)
 cli.on("READY", () => {
   cli.execCommand("SET_ACTIVITY", {
@@ -15,10 +16,25 @@ cli.on("READY", () => {
         small_image: "easports",
         small_text: "YES"
       },
-      instance: true
+      instance: true,
+      secrets: {
+        join: "test"
+      },
+      party: {
+        size: [2, 3],
+        id: "yesss"
+      }
     }
   })
-  //cli.authorize(["identify"], "https://ten-lace-meteorite.glitch.me")
+  cli.subscribe("ACTIVITY_JOIN_REQUEST")
+  cli.subscribe("ACTIVITY_JOIN")
+  cli.on("ACTIVITY_JOIN_REQUEST", (d) => {
+    cli.execCommand("SEND_ACTIVITY_JOIN_INVITE",{
+      user_id: d.user.id
+    })
+  })
 })
+
+Register(cli.client_id, `"${process.execPath}" "${fileURLToPath(import.meta.url)}" "%1"`)
 await cli.connect()
 console.log("ready")

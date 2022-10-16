@@ -1,6 +1,7 @@
 #pragma once
 #include <napi.h>
 #include <windows.h>
+#include <string>
 
 const size_t MaxFrameSize = 64 * 1024;
 struct MessageFrameHeader {
